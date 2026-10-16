@@ -92,7 +92,7 @@ W komponencie `lidar_live`:
 | `out` | render chmury (1280×720) |
 | `pos`, `col` | **tekstury 512×256**: `pos` = x y z (osie TD, Y w górę) + skala, `col` = RGB + „życie” 1..0 – gotowe do własnego instancingu, particle'i, GLSL |
 | `ring_pos`, `ring_attr` | surowy bufor: x y z + czas przyjścia; intensywność, „nowy obiekt” |
-| `topdown_view` | mapa z góry (domyślnie tylko nowe obiekty = ludzie) |
+| `topdown_view` | mapa z góry: **czerwony = cały pokój, żółty = nowe obiekty (ludzie)**. Kanał R = wszystkie punkty, G = nowe obiekty |
 | `blobs` + `blob_table` | **Blob Track** na mapie z góry → pozycje ludzi |
 | `info` | CHOP: `points`, `points_per_s`, `foreground` (ile punktów to nowe obiekty), `has_background`, `server_ok` |
 | `imu` | CHOP: `w x y z roll pitch yaw ax ay az gx gy gz` |
@@ -109,6 +109,7 @@ Parametry (strony **Lidar**, **Tlo i ludzie**, **Serwer**):
 | **Fgonly** | pokazuj tylko nowe obiekty (np. sam człowiek bez pokoju); bez nauczonego tła nic nie jest „nowe” |
 | **Naucz tło** / **Wyczyść tło** | 3 s nauki **pustej** sceny; potem wszystko, czego nie było, to „nowy obiekt”. Tło zapisuje się w `lidar_background.npy` obok projektu i wraca po restarcie. Po wyczyszczeniu nic nie jest „nowe” (pusta mapa, brak blobów) aż do ponownej nauki |
 | **Topres, Extent, Zmin/Zmax** | rozdzielczość i zasięg mapy z góry, zakres wysokości (np. tułów: −0,5…1,5 m względem lidaru) |
+| **Topfg** | bloby tylko z nowych obiektów (kanał G; bez tła brak blobów) – wyłączone: ze wszystkich punktów |
 | **Autostart / Kitpath** | czy TD ma sam uruchamiać serwer; folder paczki (puste = zapisany przez instalator) |
 
 **Pomysły na instalacje:**

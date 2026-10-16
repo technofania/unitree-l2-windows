@@ -17,6 +17,8 @@ import numpy as np
 
 
 class Engine:
+    MAP_SAT = 40.0          # tylu punktow w komorce mapy odpowiada pelna jasnosc
+
     def __init__(self, receiver_module, capacity=131072, ring_a=None, ring_b=None, top_buf=None,
                  epoch=None, lidar_ip='192.168.1.62', lidar_port=6101, local_ip='192.168.1.2',
                  local_port=6201, range_min=0.25, range_max=40.0, voxel=0.10, bg_file=None):
@@ -163,25 +165,29 @@ class Engine:
         self.n_alive = int(alive.sum())
         self.n_fg = int((alive & fg).sum())
 
+        # kanal R: wszystkie punkty (do podgladu), kanal G: tylko nowe obiekty (do Blob Track)
         sel = alive & (a[:, 1] >= z_min) & (a[:, 1] <= z_max)   # a[:,1] = wysokosc (lidar Z)
-        if top_fg:                     # tylko nowe obiekty; bez tla mapa jest pusta
-            sel &= fg
         x = a[sel, 0]
         y = -a[sel, 2]
+        f = fg[sel]
         cell = 2 * extent / top_res
         c = ((x + extent) / cell).astype(np.int32)
         r = ((y + extent) / cell).astype(np.int32)
         ok = (x > -extent) & (y > -extent) & (c < top_res) & (r < top_res)
-        hist = np.bincount(r[ok] * top_res + c[ok], minlength=top_res * top_res).astype(np.float32)
-        hist = np.log1p(hist) / np.log1p(max(hist.max(), 1.0))
+        idx = r[ok] * top_res + c[ok]
+        n_cells = top_res * top_res
+        h_all = np.bincount(idx, minlength=n_cells).astype(np.float32)
+        h_fg = np.bincount(idx[f[ok]], minlength=n_cells).astype(np.float32)
+        # stala skala (log, nasycenie przy MAP_SAT punktach w komorce) - stabilny prog dla blobow,
+        # pojedyncze punkty szumu daja slaby sygnal
+        k = np.float32(1.0 / np.log1p(self.MAP_SAT))
         if self.top_buf is not None:
-            top = self.top_buf[:top_res * top_res * 4].reshape(top_res, top_res, 4)
+            top = self.top_buf[:n_cells * 4].reshape(top_res, top_res, 4)
         else:
             top = np.empty((top_res, top_res, 4), np.float32)
-        h = hist.reshape(top_res, top_res)
-        top[..., 0] = h
-        top[..., 1] = h
-        top[..., 2] = h
+        top[..., 0] = np.minimum(np.log1p(h_all) * k, 1.0).reshape(top_res, top_res)
+        top[..., 1] = np.minimum(np.log1p(h_fg) * k, 1.0).reshape(top_res, top_res)
+        top[..., 2] = 0.0
         top[..., 3] = 1.0
         self.top, self.top_res = top, top_res
 

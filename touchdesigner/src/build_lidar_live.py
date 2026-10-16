@@ -59,7 +59,7 @@ page2 = L.appendCustomPage('Tlo i ludzie')
 P('Pulse', 'Learnbg', 'Naucz tlo (pusta scena!)', page=page2)
 P('Float', 'Learnseconds', 'Czas nauki tla [s]', 3.0, 1.0, 10.0, page=page2)
 P('Pulse', 'Clearbg', 'Wyczysc tlo', page=page2)
-P('Toggle', 'Topfg', 'Mapa z gory: tylko nowe obiekty', True, page=page2)
+P('Toggle', 'Topfg', 'Bloby: tylko nowe obiekty (wymaga tla)', True, page=page2)
 P('Int', 'Topres', 'Rozdzielczosc mapy z gory', 128, 32, 512, page=page2)
 P('Float', 'Extent', 'Zasieg mapy (polowa boku) [m]', 5.0, 1.0, 20.0, page=page2)
 P('Float', 'Zmin', 'Mapa: min wysokosc [m]', -0.5, -3.0, 3.0, page=page2)
@@ -307,6 +307,9 @@ blur.par.size = 6
 blob = mk(blobtrackTOP, 'blobs', 800, -350)
 blob.inputConnectors[0].connect(blur)
 blob.par.threshold = 0.25
+blob.par.minblobsize = 0.03
+# mapa z gory: R = wszystkie punkty (podglad), G = nowe obiekty -> bloby z G
+blob.par.monosource.expr = "'green' if parent().par.Topfg else 'red'"
 blob.par.drawblobs = True
 blob_info = mk(infoDAT, 'blob_table', 1000, -350)
 blob_info.par.op = blob
