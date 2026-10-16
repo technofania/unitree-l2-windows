@@ -14,6 +14,9 @@ foreach ($n in 'Lidar L2 - podglad 3D', 'Lidar L2 - OSC', 'Lidar L2 - folder') {
 }
 Ok "Usunieto skroty z pulpitu"
 
+$kitFile = Join-Path $env:LOCALAPPDATA 'UnitreeL2\kit_path.txt'
+if (Test-Path $kitFile) { Remove-Item $kitFile -Force }
+
 $venv = Join-Path $Root 'venv'
 if (Test-Path $venv) { Remove-Item $venv -Recurse -Force; Ok "Usunieto venv" }
 

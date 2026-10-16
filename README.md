@@ -75,23 +75,52 @@ Układ współrzędnych lidaru: **Z w górę**.
 
 ### TouchDesigner – folder `touchdesigner\`
 
-1. Uruchom **`start-osc.bat`**.
-2. Otwórz **`touchdesigner\LidarL2.toe`**
-   – albo przeciągnij **`touchdesigner\lidar_l2.tox`** do własnego projektu.
+Otwórz **`touchdesigner\LidarL2.toe`** – i tyle. Komponent **`lidar_live`** sam uruchamia
+w tle serwer (`app\l2_server.py`, bez okna) i pokazuje chmurę na żywo. Do własnego projektu
+przeciągnij **`touchdesigner\lidar_live.tox`**.
 
-W komponencie `lidar`:
+**Jak to działa:** serwer odbiera lidar w osobnym procesie i zapisuje punkty do pamięci
+współdzielonej. TD co klatkę tylko kopiuje bufor do tekstury (~2–5 ms), a wiek punktów,
+wygaszanie i kolory liczy GPU (GLSL). Efekt: **wszystkie ~60 tys. punktów/s, ~90 tys. na ekranie,
+odświeżanie co klatkę** (60 fps), stare punkty płynnie maleją i ciemnieją. Po zamknięciu TD
+serwer sam kończy pracę po 10 s.
 
-| Operator | Co robi |
+W komponencie `lidar_live`:
+
+| Operator | Co daje |
 |---|---|
-| `oscin` + `oscin_callbacks` | odbiór OSC (port 9000) |
-| `imu` | CHOP z 13 kanałami IMU |
-| `cloud` | CHOP `tx ty tz i r g b` – już w osiach TD (Y w górę) |
-| `geo` + `render` → `out` | chmura jako instancje, kamera krąży |
-| `imu_box` | żółta bryłka obracana jak lidar |
-| `grid` → `grid_view` | widok z góry jako obraz |
+| `out` | render chmury (1280×720) |
+| `pos`, `col` | **tekstury 512×256**: `pos` = x y z (osie TD, Y w górę) + skala, `col` = RGB + „życie” 1..0 – gotowe do własnego instancingu, particle'i, GLSL |
+| `ring_pos`, `ring_attr` | surowy bufor: x y z + czas przyjścia; intensywność, „nowy obiekt” |
+| `topdown_view` | mapa z góry (domyślnie tylko nowe obiekty = ludzie) |
+| `blobs` + `blob_table` | **Blob Track** na mapie z góry → pozycje ludzi |
+| `info` | CHOP: `points`, `points_per_s`, `foreground` (ile punktów to nowe obiekty), `has_background`, `server_ok` |
+| `imu` | CHOP: `w x y z roll pitch yaw ax ay az gx gy gz` |
+| `status` | tekst: stan serwera |
 
-Parametry komponentu (strona **Lidar**): **Accum** – ile paczek `/l2/cloud` łączyć
-(15 ≈ 6000 punktów), **Pointsize**, **Orbitspeed** (0 = kamera stoi).
+Parametry (strony **Lidar**, **Tlo i ludzie**, **Serwer**):
+
+| Parametr | Co robi |
+|---|---|
+| **Persistence** | czas życia punktu (0,1–2 s). Krótki = żywa, ruchliwa chmura; długi = gęsty, „malowany” obraz |
+| **Pointsize**, **Fade**, **Dim** | rozmiar punktu; jak bardzo stare punkty maleją; jak bardzo ciemnieją |
+| **Colormode** | `intensity` (odbicie), `height`, `foreground` (nowe obiekty na czerwono), `white` |
+| **Intmin/Intmax**, **Heightmin/Heightmax** | zakres kolorów |
+| **Fgonly** | pokazuj tylko nowe obiekty (np. sam człowiek bez pokoju) |
+| **Naucz tło** | 3 s nauki **pustej** sceny; potem wszystko, czego nie było, to „nowy obiekt”. Tło zapisuje się w `lidar_background.npy` obok projektu i wraca po restarcie |
+| **Topres, Extent, Zmin/Zmax** | rozdzielczość i zasięg mapy z góry, zakres wysokości (np. tułów: −0,5…1,5 m względem lidaru) |
+| **Autostart / Kitpath** | czy TD ma sam uruchamiać serwer; folder paczki (puste = zapisany przez instalator) |
+
+**Pomysły na instalacje:**
+- **Ludzie jako wejście:** Naucz tło → `blob_table` (pozycje u/v, rozmiar) → steruj dźwiękiem,
+  światłem, obrazem. `info/foreground` = „ile ruchu w scenie”.
+- **Duchy / ślady ruchu:** Fgonly + Persistence 2 s + Colormode `foreground` albo `white`.
+- **Własny wygląd:** `pos` + `col` jako źródło instancji z innym kształtem (sprite, kula,
+  linia), Bloom/Feedback TOP na `out`, GLSL na teksturach.
+- **Orientacja lidaru:** `imu` (np. lidar trzymany w ręce jako kontroler).
+
+Starszy komponent **`lidar_osc`** (`lidar_osc.tox`) dostaje rzadszą chmurę przez OSC z
+`start-osc.bat` – przydaje się, gdy lidar jest podłączony do **innego komputera** w sieci.
 
 ## Ustawienia
 
@@ -109,13 +138,14 @@ Wszystkie opcje: `venv\Scripts\python.exe app\osc_bridge.py --help` (oraz `viewe
 |---|---|
 | `INSTALUJ.bat` | instalacja |
 | `start-viewer.bat` / `start-osc.bat` | podgląd 3D / most OSC |
+| `start-server.bat` | serwer dla TD z oknem statusu (zwykle TD uruchamia go sam) |
 | `sprawdz-lidar.bat` | diagnostyka: ping, wersja, tryb pracy, 5 s odbioru |
 | `wlacz-imu.bat` | włącza IMU w lidarze, jeśli ktoś je wyłączył |
 | `skonfiguruj-siec.bat` | ponowna konfiguracja sieci (np. inna przejściówka USB-Ethernet) |
 | `przywroc-siec.bat` | cofa zmiany sieci |
 | `odinstaluj.bat` | cofa sieć, usuwa `venv` i skróty |
-| `app\` | kod: `l2_receiver.py` (protokół), `viewer.py`, `osc_bridge.py` |
-| `touchdesigner\` | `LidarL2.toe`, `lidar_l2.tox` |
+| `app\` | kod: `l2_receiver.py` (protokół), `l2_engine.py` + `l2_server.py` + `l2_shm.py` (serwer dla TD), `viewer.py`, `osc_bridge.py` |
+| `touchdesigner\` | `LidarL2.toe`, `lidar_live.tox`, `lidar_osc.tox`; `src\` – skrypt budujący komponent |
 
 ## Typowe problemy
 
@@ -125,11 +155,13 @@ Wszystkie opcje: `venv\Scripts\python.exe app\osc_bridge.py --help` (oraz `viewe
 | Ping nie działa | Kabel w złej karcie albo karta nieskonfigurowana – `skonfiguruj-siec.bat`. Przejściówka USB w innym porcie = dla Windows nowa karta → skonfiguruj ponownie. |
 | Ping działa, danych brak | Lidar w trybie standby? `venv\Scripts\python.exe app\l2_receiver.py --cmd start`. Sprawdź, czy antywirus/zapora firmowa nie blokuje UDP 6201. |
 | Brak IMU (`IMU 0`) | `wlacz-imu.bat` (zamknij wcześniej podgląd i OSC). |
-| Okienko „Nie mogę zbindować…” | Działają już 2 programy naraz (limit) albo karta nie ma adresu 192.168.1.2. |
+| Okienko „Nie mogę zbindować…” | Działa już 5 programów naraz (limit) albo karta nie ma adresu 192.168.1.2. |
 | Po zamknięciu jednego programu drugi przestał dostawać dane | Zamknięty był „głównym” odbiorcą. Uruchom ponownie ten, który został. |
 | Instalacja pakietów nie działa | Sieć uczelniana z proxy / bez internetu – spróbuj w innej sieci. Szczegóły w `install.log`. |
 | Nie mam internetu po kablu | Instalator wyłączył DHCP na tej karcie. `przywroc-siec.bat` przywraca poprzedni stan. |
-| TouchDesigner nie dostaje danych | Najpierw `start-osc.bat`; w TD sprawdź `oscin` (port 9000, Active). Inny program na porcie 9000? Zmień `OSC_PORT` i port w `oscin`. |
+| `lidar_live` w TD pusty | Zobacz DAT `status` w komponencie. „Nie znam folderu paczki” → uruchom `INSTALUJ.bat` albo ustaw parametr **Kitpath**. Dla diagnostyki: wyłącz **Autostart**, uruchom `start-server.bat` i czytaj okno. |
+| W TD „nowe obiekty” wszędzie | Tło nauczone przy kimś w kadrze albo lidar przesunięty → **Naucz tło** jeszcze raz przy pustej scenie. |
+| `lidar_osc` w TD nie dostaje danych | Najpierw `start-osc.bat`; w TD sprawdź `oscin` (port 9000, Active). |
 | TD nie otwiera `.toe` | Za stara wersja TD – zaktualizuj albo przeciągnij `.tox` do pustego projektu. |
 
 ## Cofnięcie zmian
@@ -160,6 +192,15 @@ xyz, intensity = rx.get_points(frames=12)   # ~1 s chmury, numpy Nx3 [m]
 imu = rx.last_imu                           # .quaternion (w,x,y,z), .euler_deg(), .linear_acceleration
 ```
 
+Albo – gdy działa serwer (TD albo `start-server.bat`) – czytaj gotowy bufor z pamięci
+współdzielonej, bez sieci:
+
+```python
+from l2_shm import Client
+c = Client(); c.attach()
+pts, attr = c.alive_points(1.0)   # punkty z ostatniej sekundy: x y z (osie TD), czas; intensywność, nowy obiekt
+```
+
 ### Tryb pracy lidaru
 
 Liczba bitowa zapisana w lidarze: bit 0 – FOV 192° (zamiast 180°), bit 1 – 2D, bit 2 – IMU **wyłączone**,
@@ -168,8 +209,9 @@ bit 3 – port szeregowy (**odcina Ethernet**), bit 4 – bez autostartu. Fabryc
 
 ### Sieć
 
-Lidar: `192.168.1.62:6101` → komputer: `192.168.1.2:6201` (UDP). Drugi program odbiera
-przez przekaźnik `127.0.0.1:6202`.
+Lidar: `192.168.1.62:6101` → komputer: `192.168.1.2:6201` (UDP). Program, który pierwszy zajmie
+port 6201, przekazuje pakiety kolejnym przez `127.0.0.1:6202–6205` (do 5 programów naraz).
+Serwer dla TD udostępnia dane w pamięci współdzielonej `unitree_l2_v1` (układ w `app\l2_shm.py`).
 
 ### Różnice względem dokumentacji SDK (sprawdzone na sprzęcie, firmware 2.8.11.1)
 

@@ -321,6 +321,7 @@ class L2Receiver:
         self.version = None
         self.work_mode = None
         self.imu_callbacks = []
+        self.points_callbacks = []  # cb(xyz Nx3, intensity N) dla kazdego pakietu chmury (watek odbioru!)
         self.stats = {"packets": 0, "points_pkts": 0, "imu_pkts": 0, "crc_errors": 0,
                       "bad_packets": 0, "other": {}, "seq_gaps": 0}
         self._last_seq = None
@@ -328,26 +329,32 @@ class L2Receiver:
 
     # -- gniazdo ----------------------------------------------------------
     # Port 6201 moze zajac tylko jeden program. Ten, ktory go zajmie ("glowny"),
-    # przekazuje surowe datagramy na 127.0.0.1:RELAY_PORT; drugi program (np. viewer
-    # i osc_bridge naraz) automatycznie slucha wtedy na RELAY_PORT.
-    RELAY_PORT = 6202
+    # przekazuje surowe datagramy na 127.0.0.1:6202..6205; kolejne programy (np. viewer,
+    # osc_bridge i TouchDesigner naraz) automatycznie zajmuja pierwszy wolny z tych portow.
+    RELAY_PORTS = (6202, 6203, 6204, 6205)
 
     def open(self):
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 8 * 1024 * 1024)
         self.is_relay_client = False
+        self.relay_port = None
         try:
             s.bind(self.local_addr)
         except OSError as e:
-            try:
-                s.bind(("127.0.0.1", self.RELAY_PORT))
-                self.is_relay_client = True
-            except OSError:
+            for rp in self.RELAY_PORTS:
+                try:
+                    s.bind(("127.0.0.1", rp))
+                    self.is_relay_client = True
+                    self.relay_port = rp
+                    break
+                except OSError:
+                    continue
+            if not self.is_relay_client:
                 s.close()
                 raise OSError(
                     f"Nie moge zbindowac {self.local_addr[0]}:{self.local_addr[1]} ({e}). "
                     "Czy karta ma IP 192.168.1.2? Czy port nie jest zajety przez inny program "
-                    "(max 2 programy naraz: glowny + jeden przez przekaznik 6202)?") from e
+                    "(max 5 programow naraz: glowny + 4 przez przekaznik 6202-6205)?") from e
         s.settimeout(0.5)
         self.sock = s
         self._relay = None if self.is_relay_client else socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -436,12 +443,16 @@ class L2Receiver:
             with self._lock:
                 self._buf.append((xyz, inten))
                 self._frame_counter += 1
+            for cb in self.points_callbacks:
+                cb(xyz, inten)
         elif ptype == LIDAR_2D_POINT_DATA_PACKET_TYPE:
             xyz, inten, hdr = decode_points_2d(data, self.range_min, self.range_max)
             self.stats["points_pkts"] += 1
             with self._lock:
                 self._buf.append((xyz, inten))
                 self._frame_counter += 1
+            for cb in self.points_callbacks:
+                cb(xyz, inten)
         elif ptype == LIDAR_IMU_DATA_PACKET_TYPE:
             self.last_imu = decode_imu(data)
             self.stats["imu_pkts"] += 1
@@ -467,10 +478,11 @@ class L2Receiver:
         except ConnectionResetError:
             return None  # Windows: ICMP "port unreachable" po wyslaniu na nieaktywny port
         if self._relay is not None:
-            try:
-                self._relay.sendto(buf, ("127.0.0.1", self.RELAY_PORT))
-            except OSError:
-                pass
+            for rp in self.RELAY_PORTS:
+                try:
+                    self._relay.sendto(buf, ("127.0.0.1", rp))
+                except OSError:
+                    pass
         return self.handle(buf)
 
     # -- watek ------------------------------------------------------------
@@ -481,6 +493,9 @@ class L2Receiver:
             except OSError:
                 if self._running:
                     time.sleep(0.1)
+            except Exception as e:  # np. blad w callbacku - nie zabijamy watku
+                self.stats["callback_errors"] = self.stats.get("callback_errors", 0) + 1
+                self.last_error = repr(e)
 
     def start(self):
         if self.sock is None:

@@ -89,6 +89,12 @@ if ($LASTEXITCODE -ne 0) { Fail "Pakiety sie zainstalowaly, ale nie daja sie zai
 $ErrorActionPreference = 'Stop'
 Ok $check
 
+# sciezka paczki dla TouchDesignera (komponent lidar_live sam uruchamia app\l2_server.py)
+$kitDir = Join-Path $env:LOCALAPPDATA 'UnitreeL2'
+New-Item -ItemType Directory -Force $kitDir | Out-Null
+[IO.File]::WriteAllText((Join-Path $kitDir 'kit_path.txt'), $Root)
+Ok "Sciezka paczki zapisana dla TouchDesignera: $kitDir\kit_path.txt"
+
 # --- 3. siec ---
 Step "3/5 Siec"
 $netOk = $false
