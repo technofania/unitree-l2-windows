@@ -39,7 +39,7 @@ class Engine:
         self.bg_file = bg_file
         self.learning_until = 0.0
         self._learn = []
-        self.status = 'start'
+        self.status = 'brak tla - kliknij "Naucz tlo" przy pustej scenie'
 
         self.n_alive = 0
         self.n_fg = 0
@@ -84,7 +84,7 @@ class Engine:
     def clear_background(self):
         self.bg = None
         self.learning_until = 0.0
-        self.status = 'tlo wyczyszczone'
+        self.status = 'tlo wyczyszczone - brak nowych obiektow do czasu "Naucz tlo"'
         if self.bg_file and os.path.exists(self.bg_file):
             try:
                 os.remove(self.bg_file)
@@ -129,7 +129,8 @@ class Engine:
             i = np.minimum(np.searchsorted(bg, keys), len(bg) - 1)
             fg = (bg[i] != keys).astype(np.float32)
         else:
-            fg = np.ones(n, np.float32)
+            # bez tla (albo w trakcie nauki) nic nie jest "nowym obiektem"
+            fg = np.zeros(n, np.float32)
 
         a = np.empty((n, 4), np.float32)
         a[:, 0], a[:, 1], a[:, 2] = xyz[:, 0], xyz[:, 2], -xyz[:, 1]   # lidar Z-up -> TD Y-up
@@ -158,13 +159,12 @@ class Engine:
         now = t_start - self.epoch
         a, b = self.ring_a, self.ring_b
         alive = a[:, 3] > (now - persistence)
-        has_bg = self.bg is not None
         fg = b[:, 1] > 0.5
         self.n_alive = int(alive.sum())
-        self.n_fg = int((alive & fg).sum()) if has_bg else 0
+        self.n_fg = int((alive & fg).sum())
 
         sel = alive & (a[:, 1] >= z_min) & (a[:, 1] <= z_max)   # a[:,1] = wysokosc (lidar Z)
-        if top_fg and has_bg:
+        if top_fg:                     # tylko nowe obiekty; bez tla mapa jest pusta
             sel &= fg
         x = a[sel, 0]
         y = -a[sel, 2]

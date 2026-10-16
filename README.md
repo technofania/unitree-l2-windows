@@ -106,8 +106,8 @@ Parametry (strony **Lidar**, **Tlo i ludzie**, **Serwer**):
 | **Pointsize**, **Fade**, **Dim** | rozmiar punktu; jak bardzo stare punkty maleją; jak bardzo ciemnieją |
 | **Colormode** | `intensity` (odbicie), `height`, `foreground` (nowe obiekty na czerwono), `white` |
 | **Intmin/Intmax**, **Heightmin/Heightmax** | zakres kolorów |
-| **Fgonly** | pokazuj tylko nowe obiekty (np. sam człowiek bez pokoju) |
-| **Naucz tło** | 3 s nauki **pustej** sceny; potem wszystko, czego nie było, to „nowy obiekt”. Tło zapisuje się w `lidar_background.npy` obok projektu i wraca po restarcie |
+| **Fgonly** | pokazuj tylko nowe obiekty (np. sam człowiek bez pokoju); bez nauczonego tła nic nie jest „nowe” |
+| **Naucz tło** / **Wyczyść tło** | 3 s nauki **pustej** sceny; potem wszystko, czego nie było, to „nowy obiekt”. Tło zapisuje się w `lidar_background.npy` obok projektu i wraca po restarcie. Po wyczyszczeniu nic nie jest „nowe” (pusta mapa, brak blobów) aż do ponownej nauki |
 | **Topres, Extent, Zmin/Zmax** | rozdzielczość i zasięg mapy z góry, zakres wysokości (np. tułów: −0,5…1,5 m względem lidaru) |
 | **Autostart / Kitpath** | czy TD ma sam uruchamiać serwer; folder paczki (puste = zapisany przez instalator) |
 

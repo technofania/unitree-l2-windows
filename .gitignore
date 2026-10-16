@@ -6,3 +6,8 @@ scans/
 network-backup.json
 touchdesigner/Backup/
 *.toe.dir/
+# projekty TD zapisywane przez uzytkownika w folderze paczki (wersja dla studentow: LidarL2.toe)
+touchdesigner/*.toe
+!touchdesigner/LidarL2.toe
+touchdesigner/Backup/
+*.npy
